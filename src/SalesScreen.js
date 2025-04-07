@@ -11,6 +11,7 @@ const SalesScreen = () => {
     const [showReceipt, setShowReceipt] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState("cash");
     const [cashReceived, setCashReceived] = useState(0);
+    const [mpesaCode, setMpesaCode] = useState("");
     const [currentSale, setCurrentSale] = useState(null);
 
     // Fetch inventory data
@@ -86,12 +87,12 @@ const SalesScreen = () => {
         );
     };
 
-    // Update item price with negotiation (within 50-100 KSH of original price)
+    // Update item price with negotiation
     const updatePrice = (id, newPrice) => {
         const item = cart.find((cartItem) => cartItem.id === id);
         const originalPrice = item.price;
 
-        // Ensure new price is within the acceptable range (50 - 100 KSH of original price)
+        // Ensure new price is within the acceptable range
         const minPrice = originalPrice - 50;
         const maxPrice = originalPrice + 100;
 
@@ -118,15 +119,29 @@ const SalesScreen = () => {
         setCart((prevCart) => prevCart.filter((item) => item.id !== id));
     };
 
-    // Handle checkout
-    const handleCheckout = async () => {
+    // Validate payment
+    const validatePayment = () => {
         if (cart.length === 0) {
             alert("Cart is empty");
-            return;
+            return false;
         }
 
-        if (paymentMethod === "cash" && cashReceived < total) {
+        if (paymentMethod === "cash" && parseFloat(cashReceived) < total) {
             alert("Insufficient cash received");
+            return false;
+        }
+
+        if (paymentMethod === "mpesa" && !mpesaCode.trim()) {
+            alert("Please enter M-Pesa transaction code");
+            return false;
+        }
+
+        return true;
+    };
+
+    // Handle checkout
+    const handleCheckout = async () => {
+        if (!validatePayment()) {
             return;
         }
 
@@ -158,7 +173,8 @@ const SalesScreen = () => {
                 vat: taxAmount,
                 total,
                 paymentMethod,
-                cashReceived: parseFloat(cashReceived),
+                cashReceived: paymentMethod === "cash" ? parseFloat(cashReceived) : 0,
+                mpesaCode: paymentMethod === "mpesa" ? mpesaCode : "",
                 timestamp: new Date(),
                 change: paymentMethod === "cash" ? change : 0,
             };
@@ -201,16 +217,12 @@ const SalesScreen = () => {
         }
     };
 
-    // Handle printing receipt
-    const handlePrintReceipt = () => {
-        window.print();
-    };
-
     // Start new sale
     const handleNewSale = () => {
         setShowReceipt(false);
         setCart([]);
         setCashReceived(0);
+        setMpesaCode("");
         setPaymentMethod("cash");
         setCurrentSale(null);
     };
@@ -338,6 +350,7 @@ const SalesScreen = () => {
                                             >
                                                 <option value="cash">Cash</option>
                                                 <option value="card">Card</option>
+                                                <option value="mpesa">M-Pesa</option>
                                             </select>
                                         </div>
 
@@ -350,6 +363,24 @@ const SalesScreen = () => {
                                                     onChange={(e) => setCashReceived(e.target.value)}
                                                     className="w-full p-2 border rounded"
                                                     min={total}
+                                                />
+                                                {parseFloat(cashReceived) >= total && (
+                                                    <div className="text-green-600 mt-1">
+                                                        Change: KSH {(parseFloat(cashReceived) - total).toFixed(2)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {paymentMethod === "mpesa" && (
+                                            <div className="mt-4">
+                                                <label className="block font-medium">M-Pesa Transaction Code</label>
+                                                <input
+                                                    type="text"
+                                                    value={mpesaCode}
+                                                    onChange={(e) => setMpesaCode(e.target.value)}
+                                                    className="w-full p-2 border rounded"
+                                                    placeholder="e.g. QWE123456"
                                                 />
                                             </div>
                                         )}
@@ -371,7 +402,6 @@ const SalesScreen = () => {
             ) : (
                 <Receipt
                     sale={currentSale}
-                    onPrintReceipt={handlePrintReceipt}
                     onNewSale={handleNewSale}
                 />
             )}
